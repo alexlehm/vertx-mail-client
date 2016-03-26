@@ -106,6 +106,11 @@ class SMTPInitialDialogue {
     errorHandler.handle(new NoStackTraceThrowable(message));
   }
 
+  private void handleError(Throwable th) {
+    log.debug("handleError:" + th.getMessage());
+    errorHandler.handle(th);
+  }
+
   /**
    * run STARTTLS command and redo EHLO
    */
@@ -114,6 +119,15 @@ class SMTPInitialDialogue {
       log.debug("STARTTLS result: " + message);
       connection.upgradeToSsl(v -> {
         log.debug("ssl started");
+        // check for valid host if we have set !trustAll
+        if (!config.isTrustAll()) {
+          try {
+            connection.validateHost(config.getHostname());
+          } catch (Exception ex) {
+            handleError(ex);
+          }
+        }
+
         // capabilities may have changed, e.g.
         // if a service only announces PLAIN/LOGIN
         // on secure channel (e.g. googlemail)

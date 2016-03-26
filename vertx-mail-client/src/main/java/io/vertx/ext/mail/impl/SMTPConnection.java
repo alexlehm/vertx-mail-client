@@ -16,6 +16,13 @@
 
 package io.vertx.ext.mail.impl;
 
+import java.io.UnsupportedEncodingException;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.security.cert.CertificateException;
+
 import io.vertx.core.Context;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
@@ -26,8 +33,6 @@ import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetSocket;
 import io.vertx.ext.mail.MailConfig;
-
-import java.net.InetSocketAddress;
 
 /**
  * SMTP connection to a server.
@@ -238,18 +243,32 @@ class SMTPConnection {
             }
           }
         });
-        commandReplyHandler = initialReplyHandler;
-        final Handler<Buffer> mlp = new MultilineParser(buffer -> {
-          if (commandReplyHandler == null) {
-            log.debug("dropping reply arriving after we stopped processing \"" + buffer.toString() + "\"");
-          } else {
-            // make sure we only call the handler once
-            Handler<String> currentHandler = commandReplyHandler;
-            commandReplyHandler = null;
-            currentHandler.handle(buffer.toString());
+        boolean validateError = false;
+        if(ns.isSsl()) {
+          if(!config.isTrustAll()) {
+            try {
+              validateHost(config.getHostname());
+            } catch (Exception ex) {
+              // make sure we don't try to use the connection below
+              validateError = true;
+              handleError(ex);
+            }
           }
-        });
-        ns.handler(mlp);
+        }
+        if(!validateError) {
+          commandReplyHandler = initialReplyHandler;
+          final Handler<Buffer> mlp = new MultilineParser(buffer -> {
+            if (commandReplyHandler == null) {
+              log.debug("dropping reply arriving after we stopped processing \"" + buffer.toString() + "\"");
+            } else {
+              // make sure we only call the handler once
+              Handler<String> currentHandler = commandReplyHandler;
+              commandReplyHandler = null;
+              currentHandler.handle(buffer.toString());
+            }
+          });
+          ns.handler(mlp);
+        }
       } else {
         log.error("exception on connect", asyncResult.cause());
         handleError(asyncResult.cause());
@@ -395,4 +414,17 @@ class SMTPConnection {
   Context getContext() {
     return context;
   }
+
+  /**
+   * @param hostname
+   * @throws CertificateException 
+   * @throws java.security.cert.CertificateException 
+   * @throws UnsupportedEncodingException 
+   * @throws SSLPeerUnverifiedException 
+   * @throws UnknownHostException 
+   */
+  void validateHost(String hostname) throws SSLPeerUnverifiedException, UnsupportedEncodingException, java.security.cert.CertificateException, CertificateException, UnknownHostException {
+    new CertHostnameChecker(ns.peerCertificateChain(), hostname).validateHost();
+  }
+
 }
