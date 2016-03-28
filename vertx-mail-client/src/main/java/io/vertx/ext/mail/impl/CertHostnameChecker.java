@@ -51,6 +51,7 @@ public class CertHostnameChecker {
    */
   public void validateHost() throws SSLPeerUnverifiedException, UnsupportedEncodingException,
   CertificateException, java.security.cert.CertificateException, UnknownHostException {
+    log.debug("checking certificate for "+hostname);
     if (certs == null) {
       throw new SSLPeerUnverifiedException("no certificate chain available");
     } else {

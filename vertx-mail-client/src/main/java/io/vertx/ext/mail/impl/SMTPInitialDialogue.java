@@ -122,6 +122,7 @@ class SMTPInitialDialogue {
         // check for valid host if we have set !trustAll
         if (!config.isTrustAll()) {
           try {
+            log.debug("check cert for tls");
             connection.validateHost(config.getHostname());
           } catch (Exception ex) {
             handleError(ex);

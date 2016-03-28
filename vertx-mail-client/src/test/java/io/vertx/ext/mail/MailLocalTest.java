@@ -16,8 +16,6 @@
 
 package io.vertx.ext.mail;
 
-import javax.net.ssl.SSLHandshakeException;
-
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -62,15 +60,6 @@ public class MailLocalTest extends SMTPTestWiser {
         .setKeyStore("src/test/resources/certs/client.jks").setKeyStorePassword("password");
     MailClient mailClient = MailClient.createNonShared(vertx, config);
     testSuccess(mailClient, exampleMessage(), assertExampleMessage());
-  }
-
-  @Test
-  public void mailTestTLSValidCertWrongHost(TestContext testContext) {
-    this.testContext = testContext;
-    final MailConfig config = configLogin().setHostname("127.0.0.1").setStarttls(StartTLSOptions.REQUIRED)
-        .setKeyStore("src/test/resources/certs/client.jks").setKeyStorePassword("password");
-    MailClient mailClient = MailClient.createNonShared(vertx, config);
-    testException(mailClient);
   }
 
 }
