@@ -89,6 +89,7 @@ public class CertHostnameChecker {
         }
       } else {
         // check CN only if no altsubject entries are present
+        log.debug("checking hostname based on CN");
         String subject = cert.getSubjectDN().getName();
         int index = subject.indexOf("CN=");
         if(index>=0) {
@@ -105,9 +106,9 @@ public class CertHostnameChecker {
             }
           }
         }
-        if(!matched) {
-          throw new SSLPeerUnverifiedException("hostname doesn't match");
-        }
+      }
+      if(!matched) {
+        throw new SSLPeerUnverifiedException("hostname doesn't match");
       }
     }
   }
