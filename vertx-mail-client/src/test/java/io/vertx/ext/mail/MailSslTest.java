@@ -113,6 +113,16 @@ public class MailSslTest extends SMTPTestDummy {
     testSuccess(mailClient);
   }
 
+  @Test
+  public void mailTestSSLCertCNWrongHost(TestContext testContext) {
+    this.testContext = testContext;
+    startServer("src/test/resources/certs/server3.jks");
+    final MailConfig config = new MailConfig("127.0.0.1", 1465, StartTLSOptions.DISABLED, LoginOption.DISABLED)
+        .setSsl(true).setKeyStore("src/test/resources/certs/client.jks").setKeyStorePassword("password");
+    MailClient mailClient = MailClient.createNonShared(vertx, config);
+    testException(mailClient, SSLPeerUnverifiedException.class);
+  }
+
   @Override
   protected void startSMTP() {
     // start server later since the tests use different keystores

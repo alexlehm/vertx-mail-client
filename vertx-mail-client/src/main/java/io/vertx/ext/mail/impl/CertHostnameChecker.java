@@ -42,16 +42,16 @@ public class CertHostnameChecker {
   }
 
   /**
-   * @throws SSLPeerUnverifiedException 
-   * @throws UnsupportedEncodingException 
-   * @throws CertificateException 
-   * @throws java.security.cert.CertificateException 
-   * @throws UnknownHostException 
+   * @throws SSLPeerUnverifiedException
+   * @throws UnsupportedEncodingException
+   * @throws CertificateException
+   * @throws java.security.cert.CertificateException
+   * @throws UnknownHostException
    * 
    */
-  public void validateHost() throws SSLPeerUnverifiedException, UnsupportedEncodingException,
-  CertificateException, java.security.cert.CertificateException, UnknownHostException {
-    log.debug("checking certificate for "+hostname);
+  public void validateHost() throws SSLPeerUnverifiedException, UnsupportedEncodingException, CertificateException,
+      java.security.cert.CertificateException, UnknownHostException {
+    log.debug("checking certificate for " + hostname);
     if (certs == null) {
       throw new SSLPeerUnverifiedException("no certificate chain available");
     } else {
@@ -61,28 +61,27 @@ public class CertHostnameChecker {
       java.security.cert.X509Certificate cert2 = instantiate(encCert);
       Collection<List<?>> sa = cert2.getSubjectAlternativeNames();
       boolean hostnameIsIp = isIpAddress(hostname);
-      if(sa != null) {
+      if (sa != null) {
         for (List<?> s : sa) {
           int type = (Integer) s.get(0);
-          if(type == 2) {
+          if (type == 2) {
             String name = (String) s.get(1);
-            if(hostnameIsIp) {
-              if(isIpAddress(name)) {
+            if (hostnameIsIp) {
+              if (isIpAddress(name)) {
                 matched = matchIp(hostname, name);
               }
             } else {
               matched = matchHostname(hostname, name);
             }
-            if(matched) {
-              log.debug(hostname + " matches "+name);
+            if (matched) {
+              log.debug(hostname + " matches " + name);
               break;
             }
-          }
-          else if(type == 7) {
+          } else if (type == 7) {
             String ip = (String) s.get(1);
             matched = matchIp(hostname, ip);
-            if(matched) {
-              log.debug(hostname + " matches "+ip);
+            if (matched) {
+              log.debug(hostname + " matches " + ip);
               break;
             }
           }
@@ -92,22 +91,24 @@ public class CertHostnameChecker {
         log.debug("checking hostname based on CN");
         String subject = cert.getSubjectDN().getName();
         int index = subject.indexOf("CN=");
-        if(index>=0) {
-          String cn =subject.substring(index+3);
+        if (index >= 0) {
+          String cn = subject.substring(index + 3);
           int index2 = cn.indexOf(',');
-          if(index2 >=0) {
-            cn = cn.substring(0,index2);
+          if (index2 >= 0) {
+            cn = cn.substring(0, index2);
           }
-          if(hostnameIsIp) {
-            matched = matchIp(hostname, cn);
+          if (hostnameIsIp) {
+            if (isIpAddress(cn)) {
+              matched = matchIp(hostname, cn);
+            }
           } else {
-            if(!isIpAddress(cn)) {
+            if (!isIpAddress(cn)) {
               matched = matchHostname(hostname, cn);
             }
           }
         }
       }
-      if(!matched) {
+      if (!matched) {
         throw new SSLPeerUnverifiedException("hostname doesn't match");
       }
     }
@@ -118,8 +119,7 @@ public class CertHostnameChecker {
    * @return
    */
   private boolean isIpAddress(String hostname) {
-    return IPV4.matcher(hostname).matches() ||
-            IPV6.matcher(hostname).matches();
+    return IPV4.matcher(hostname).matches() || IPV6.matcher(hostname).matches();
   }
 
   /**
@@ -130,8 +130,8 @@ public class CertHostnameChecker {
   private boolean matchIp(String hostname, String ip) throws UnknownHostException {
     InetAddress ipAddr = InetAddress.getByName(ip);
     InetAddress ipAddr2 = InetAddress.getByName(hostname);
-    log.debug("compare("+hostname+","+ip+")");
-    log.debug("compare("+ipAddr.getHostAddress()+","+ipAddr2.getHostAddress()+")");
+    log.debug("compare(" + hostname + "," + ip + ")");
+    log.debug("compare(" + ipAddr.getHostAddress() + "," + ipAddr2.getHostAddress() + ")");
     return ipAddr.equals(ipAddr2);
   }
 
@@ -141,10 +141,10 @@ public class CertHostnameChecker {
    * @return
    */
   private boolean matchHostname(String hostname, String name) {
-    log.debug("compare("+hostname+","+name+")");
-    if(name.startsWith("*.")) {
-      if(hostname.contains(".")) {
-        return hostname.substring(hostname.indexOf('.')+1).equals(name.substring(2));
+    log.debug("compare(" + hostname + "," + name + ")");
+    if (name.startsWith("*.")) {
+      if (hostname.contains(".")) {
+        return hostname.substring(hostname.indexOf('.') + 1).equals(name.substring(2));
       } else {
         return false;
       }
@@ -153,11 +153,12 @@ public class CertHostnameChecker {
     }
   }
 
-  private java.security.cert.X509Certificate instantiate(byte encCert[]) throws java.security.cert.CertificateException {
+  private java.security.cert.X509Certificate instantiate(byte encCert[])
+      throws java.security.cert.CertificateException {
     InputStream inStream = null;
     inStream = new ByteArrayInputStream(encCert);
     CertificateFactory cf = CertificateFactory.getInstance("X.509");
-    java.security.cert.X509Certificate cert = (java.security.cert.X509Certificate)cf.generateCertificate(inStream);
+    java.security.cert.X509Certificate cert = (java.security.cert.X509Certificate) cf.generateCertificate(inStream);
     return cert;
   }
 
