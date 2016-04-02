@@ -29,3 +29,7 @@ openssl req -new -key server3.key -out server3.csr -config openssl.cnf
 openssl x509 -req -in server3.csr -CA rootCA.pem -CAkey rootCA.key -CAcreateserial -out server3.crt -days 500 -sha256
 openssl pkcs12 -export -inkey server3.key -in server3.crt -certfile rootCA.pem -out server3.p12
 keytool -importkeystore -srckeystore server3.p12 -srcstorepass password -destkeystore server3.jks -deststorepass password -srcstoretype pkcs12 -deststoretype jks
+
+# this certificate is used for a cert unit test only, so we do not need a jks
+cat openssl.cnf.head altnames_wildcard >openssl.cnf
+openssl x509 -req -in server.csr -CA rootCA.pem -CAkey rootCA.key -CAcreateserial -out server_wildcard.crt -days 500 -sha256 -extensions req_ext -extfile openssl.cnf
