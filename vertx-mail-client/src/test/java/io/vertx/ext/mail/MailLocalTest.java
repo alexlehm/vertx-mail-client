@@ -56,7 +56,16 @@ public class MailLocalTest extends SMTPTestWiser {
   @Test
   public void mailTestTLSCorrectCert(TestContext testContext) {
     this.testContext = testContext;
-    final MailConfig config = configLogin()
+    final MailConfig config = configLogin().setStarttls(StartTLSOptions.REQUIRED)
+        .setKeyStore("src/test/resources/certs/client.jks").setKeyStorePassword("password");
+    MailClient mailClient = MailClient.createNonShared(vertx, config);
+    testSuccess(mailClient, exampleMessage(), assertExampleMessage());
+  }
+
+  @Test
+  public void mailTestTLSCase(TestContext testContext) {
+    this.testContext = testContext;
+    final MailConfig config = configLogin().setHostname("LOCALHOST").setStarttls(StartTLSOptions.REQUIRED)
         .setKeyStore("src/test/resources/certs/client.jks").setKeyStorePassword("password");
     MailClient mailClient = MailClient.createNonShared(vertx, config);
     testSuccess(mailClient, exampleMessage(), assertExampleMessage());

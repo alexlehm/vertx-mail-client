@@ -76,11 +76,14 @@ public class CertHostnameChecker {
             }
           } else if (type == 7) {
             // IP entry (ipv4 or ipv6 address)
-            String ip = (String) s.get(1);
-            matched = matchIp(hostname, ip);
-            if (matched) {
-              log.debug(hostname + " matches " + ip);
-              break;
+            // we do not want to resolve the hostname via dns
+            if(hostnameIsIp) {
+              String ip = (String) s.get(1);
+              matched = matchIp(hostname, ip);
+              if (matched) {
+                log.debug(hostname + " matches " + ip);
+                break;
+              }
             }
           }
         }
@@ -142,12 +145,12 @@ public class CertHostnameChecker {
     log.debug("compare(" + hostname + "," + name + ")");
     if (name.startsWith("*.")) {
       if (hostname.contains(".")) {
-        return hostname.substring(hostname.indexOf('.') + 1).equals(name.substring(2));
+        return hostname.substring(hostname.indexOf('.') + 1).equalsIgnoreCase(name.substring(2));
       } else {
         return false;
       }
     } else {
-      return hostname.equals(name);
+      return hostname.equalsIgnoreCase(name);
     }
   }
 
