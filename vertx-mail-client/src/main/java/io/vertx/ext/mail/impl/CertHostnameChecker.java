@@ -65,19 +65,17 @@ public class CertHostnameChecker {
         for (List<?> s : sa) {
           int type = (Integer) s.get(0);
           if (type == 2) {
+            // DNS entry (hostname or wildcard), we assume that it does may not contain an IP address
             String name = (String) s.get(1);
-            if (hostnameIsIp) {
-              if (isIpAddress(name)) {
-                matched = matchIp(hostname, name);
-              }
-            } else {
+            if (!hostnameIsIp) {
               matched = matchHostname(hostname, name);
-            }
-            if (matched) {
-              log.debug(hostname + " matches " + name);
-              break;
+              if (matched) {
+                log.debug(hostname + " matches " + name);
+                break;
+              }
             }
           } else if (type == 7) {
+            // IP entry (ipv4 or ipv6 address)
             String ip = (String) s.get(1);
             matched = matchIp(hostname, ip);
             if (matched) {
@@ -153,6 +151,9 @@ public class CertHostnameChecker {
     }
   }
 
+  /*
+   * convert from javax... to java.. via the DER representation
+   */
   private java.security.cert.X509Certificate instantiate(byte encCert[])
       throws java.security.cert.CertificateException {
     InputStream inStream = null;
