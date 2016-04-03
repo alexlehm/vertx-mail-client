@@ -17,7 +17,7 @@
 package io.vertx.ext.mail;
 
 import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.security.cert.CertificateException;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -120,7 +120,7 @@ public class MailSslTest extends SMTPTestDummy {
     final MailConfig config = new MailConfig("127.0.0.1", 1465, StartTLSOptions.DISABLED, LoginOption.DISABLED)
         .setSsl(true).setKeyStore("src/test/resources/certs/client.jks").setKeyStorePassword("password");
     MailClient mailClient = MailClient.createNonShared(vertx, config);
-    testException(mailClient, SSLPeerUnverifiedException.class);
+    testException(mailClient, CertificateException.class);
   }
 
   @Override

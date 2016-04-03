@@ -1,11 +1,10 @@
 /**
- * 
+ * Check if hostname is valid for a given certificate
  */
 package io.vertx.ext.mail.impl;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.cert.CertificateFactory;
@@ -13,7 +12,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.security.cert.CertificateException;
 import javax.security.cert.X509Certificate;
 
@@ -42,18 +40,13 @@ public class CertHostnameChecker {
   }
 
   /**
-   * @throws SSLPeerUnverifiedException
-   * @throws UnsupportedEncodingException
    * @throws CertificateException
-   * @throws java.security.cert.CertificateException
-   * @throws UnknownHostException
-   * 
+   * @throws java.security.cert.CertificateException 
    */
-  public void validateHost() throws SSLPeerUnverifiedException, UnsupportedEncodingException, CertificateException,
-      java.security.cert.CertificateException, UnknownHostException {
+  public void validateHost() throws CertificateException, java.security.cert.CertificateException {
     log.debug("checking certificate for " + hostname);
     if (certs == null) {
-      throw new SSLPeerUnverifiedException("no certificate chain available");
+      throw new CertificateException("no certificate chain available");
     } else {
       boolean matched = false;
       X509Certificate cert = certs[0];
@@ -76,7 +69,7 @@ public class CertHostnameChecker {
             }
           } else if (type == 7) {
             // IP entry (ipv4 or ipv6 address)
-            // we do not want to resolve the hostname via dns
+            // make sure hostname is in fact an ip address, we do not want to resolve the hostname via dns
             if(hostnameIsIp) {
               String ip = (String) s.get(1);
               matched = matchIp(hostname, ip);
@@ -110,7 +103,7 @@ public class CertHostnameChecker {
         }
       }
       if (!matched) {
-        throw new SSLPeerUnverifiedException("hostname doesn't match");
+        throw new CertificateException("hostname \""+hostname+"\" doesn't match");
       }
     }
   }
@@ -126,14 +119,17 @@ public class CertHostnameChecker {
   /**
    * @param ip
    * @return
-   * @throws UnknownHostException
    */
-  private boolean matchIp(String hostname, String ip) throws UnknownHostException {
-    InetAddress ipAddr = InetAddress.getByName(ip);
-    InetAddress ipAddr2 = InetAddress.getByName(hostname);
-    log.debug("compare(" + hostname + "," + ip + ")");
-    log.debug("compare(" + ipAddr.getHostAddress() + "," + ipAddr2.getHostAddress() + ")");
-    return ipAddr.equals(ipAddr2);
+  private boolean matchIp(String hostname, String ip) {
+    try {
+      log.debug("compare(" + hostname + "," + ip + ")");
+      InetAddress ipAddr = InetAddress.getByName(ip);
+      InetAddress ipAddr2 = InetAddress.getByName(hostname);
+      log.debug("compare(" + ipAddr.getHostAddress() + "," + ipAddr2.getHostAddress() + ")");
+      return ipAddr.equals(ipAddr2);
+    } catch (UnknownHostException ex) {
+      return false;
+    }
   }
 
   /**

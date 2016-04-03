@@ -14,21 +14,16 @@
  *  You may elect to redistribute this code under either of these licenses.
  */
 
-package io.vertx.ext.mail;
+package io.vertx.ext.mail.impl;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 
 import javax.security.cert.CertificateException;
 import javax.security.cert.X509Certificate;
 
-import javax.net.ssl.SSLPeerUnverifiedException;
-
 import org.junit.Test;
-
-import io.vertx.ext.mail.impl.CertHostnameChecker;
 
 /**
  * test a few certificate checks that are difficult to do when we are connecting to localhost only on the test server
@@ -37,7 +32,7 @@ import io.vertx.ext.mail.impl.CertHostnameChecker;
  */
 public class CertHostnameCheckerTest {
 
-  @Test(expected=SSLPeerUnverifiedException.class)
+  @Test(expected = CertificateException.class)
   public void testCertNullException() throws Exception {
     new CertHostnameChecker(null, "localhost").validateHost();
   }
@@ -50,12 +45,12 @@ public class CertHostnameCheckerTest {
     new CertHostnameChecker(certs, "subdomain.example.com").validateHost();
   }
 
-  @Test(expected=SSLPeerUnverifiedException.class)
+  @Test(expected = CertificateException.class)
   public void testPlainDomain() throws Exception {
     new CertHostnameChecker(certList(), "example.com").validateHost();
   }
 
-  @Test(expected=SSLPeerUnverifiedException.class)
+  @Test(expected = CertificateException.class)
   public void testPlainHostname() throws Exception {
     new CertHostnameChecker(certList(), "hostname").validateHost();
   }
@@ -63,7 +58,7 @@ public class CertHostnameCheckerTest {
   /**
    * @return
    * @throws CertificateException
-   * @throws IOException 
+   * @throws IOException
    */
   private X509Certificate[] certList() throws CertificateException, IOException {
     try (InputStream inputStream = new FileInputStream("src/test/resources/certs/server_wildcard.crt")) {
@@ -73,7 +68,7 @@ public class CertHostnameCheckerTest {
     }
   }
 
-  @Test(expected=SSLPeerUnverifiedException.class)
+  @Test(expected = CertificateException.class)
   public void testDiffDomain() throws Exception {
     new CertHostnameChecker(certList(), "www.example.org").validateHost();
   }
