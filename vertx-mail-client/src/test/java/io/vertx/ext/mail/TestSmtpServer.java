@@ -22,6 +22,7 @@ import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.net.JksOptions;
 import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetServerOptions;
+import io.vertx.core.net.NetSocket;
 import io.vertx.core.parsetools.RecordParser;
 
 import java.util.Locale;
@@ -44,6 +45,8 @@ public class TestSmtpServer {
 
   private boolean ssl = false; 
   private String keystore = null;
+
+  private boolean slowResponse = false;
   /*
    * set up server with a default reply that works for EHLO and no login with one recipient
    */
@@ -84,69 +87,11 @@ public class TestSmtpServer {
     netServer = vertx.createNetServer(nsOptions);
 
     netServer.connectHandler(socket -> {
-      socket.write(dialogue[0] + "\r\n");
-      log.debug("S:" + dialogue[0]);
-      if (dialogue.length == 1) {
-        if (closeImmediately) {
-          log.debug("closeImmediately");
-          socket.close();
-        } else {
-          log.debug("waiting " + closeWaitTime + " secs to close");
-          vertx.setTimer(closeWaitTime * 1000, v -> socket.close());
-        }
+      if (slowResponse) {
+        log.debug("slow response");
+        vertx.setTimer(100, v -> processSmtp(vertx, socket));
       } else {
-        final AtomicInteger lines = new AtomicInteger(1);
-        final AtomicInteger skipUntilDot = new AtomicInteger(0);
-        socket.handler(RecordParser.newDelimited("\r\n", buffer -> {
-          final String inputLine = buffer.toString();
-          log.debug("C:" + inputLine);
-          if (skipUntilDot.get() == 1) {
-            if (inputLine.equals(".")) {
-              skipUntilDot.set(0);
-              if (lines.get() < dialogue.length) {
-                log.debug("S:" + dialogue[lines.get()]);
-                socket.write(dialogue[lines.getAndIncrement()] + "\r\n");
-              }
-            }
-          } else {
-            int currentLine = lines.getAndIncrement();
-            if (currentLine < dialogue.length) {
-              String thisLine = dialogue[currentLine];
-              boolean isRegexp = thisLine.startsWith("^");
-              if (!isRegexp && !inputLine.contains(thisLine) || isRegexp && !inputLine.matches(thisLine)) {
-                socket.write("500 didn't expect that command (\"" + thisLine + "\"/\"" + inputLine + "\")\r\n");
-                log.info("sending 500 didn't expect that command (\"" + thisLine + "\"/\"" + inputLine + "\")");
-                // stop here
-                lines.set(dialogue.length);
-              }
-            } else {
-              log.info("out of lines, sending error reply");
-              socket.write("500 out of lines\r\n");
-          }
-          if (inputLine.toUpperCase(Locale.ENGLISH).equals("DATA")) {
-            skipUntilDot.set(1);
-          }
-          if (inputLine.toUpperCase(Locale.ENGLISH).equals("STARTTLS")) {
-            socket.write(dialogue[lines.getAndIncrement()] + "\r\n");
-            socket.upgradeToSsl(v -> {
-              log.debug("tls upgrade finished");
-            });
-          }
-          else if (lines.get() < dialogue.length) {
-            log.debug("S:" + dialogue[lines.get()]);
-            socket.write(dialogue[lines.getAndIncrement()] + "\r\n");
-          }
-        }
-        if (lines.get() == dialogue.length) {
-          if (closeImmediately) {
-            log.debug("closeImmediately");
-            socket.close();
-          } else {
-            log.debug("waiting " + closeWaitTime + " secs to close");
-            vertx.setTimer(closeWaitTime * 1000, v -> socket.close());
-          }
-        }
-      } ));
+        processSmtp(vertx, socket);
       }
     });
     CountDownLatch latch = new CountDownLatch(1);
@@ -155,6 +100,77 @@ public class TestSmtpServer {
       latch.await();
     } catch (InterruptedException e) {
       log.error("interrupted while waiting for countdown latch", e);
+    }
+  }
+
+  /**
+   * @param vertx
+   * @param socket
+   */
+  private void processSmtp(Vertx vertx, NetSocket socket) {
+    socket.write(dialogue[0] + "\r\n");
+    log.debug("S:" + dialogue[0]);
+    if (dialogue.length == 1) {
+      if (closeImmediately) {
+        log.debug("closeImmediately");
+        socket.close();
+      } else {
+        log.debug("waiting " + closeWaitTime + " secs to close");
+        vertx.setTimer(closeWaitTime * 1000, v -> socket.close());
+      }
+    } else {
+      final AtomicInteger lines = new AtomicInteger(1);
+      final AtomicInteger skipUntilDot = new AtomicInteger(0);
+      socket.handler(RecordParser.newDelimited("\r\n", buffer -> {
+        final String inputLine = buffer.toString();
+        log.debug("C:" + inputLine);
+        if (skipUntilDot.get() == 1) {
+          if (inputLine.equals(".")) {
+            skipUntilDot.set(0);
+            if (lines.get() < dialogue.length) {
+              log.debug("S:" + dialogue[lines.get()]);
+              socket.write(dialogue[lines.getAndIncrement()] + "\r\n");
+            }
+          }
+        } else {
+          int currentLine = lines.getAndIncrement();
+          if (currentLine < dialogue.length) {
+            String thisLine = dialogue[currentLine];
+            boolean isRegexp = thisLine.startsWith("^");
+            if (!isRegexp && !inputLine.contains(thisLine) || isRegexp && !inputLine.matches(thisLine)) {
+              socket.write("500 didn't expect that command (\"" + thisLine + "\"/\"" + inputLine + "\")\r\n");
+              log.info("sending 500 didn't expect that command (\"" + thisLine + "\"/\"" + inputLine + "\")");
+              // stop here
+              lines.set(dialogue.length);
+            }
+          } else {
+            log.info("out of lines, sending error reply");
+            socket.write("500 out of lines\r\n");
+        }
+        if (inputLine.toUpperCase(Locale.ENGLISH).equals("DATA")) {
+          skipUntilDot.set(1);
+        }
+        if (inputLine.toUpperCase(Locale.ENGLISH).equals("STARTTLS")) {
+          socket.write(dialogue[lines.getAndIncrement()] + "\r\n");
+          socket.upgradeToSsl(v -> {
+            log.debug("tls upgrade finished");
+          });
+        }
+        else if (lines.get() < dialogue.length) {
+          log.debug("S:" + dialogue[lines.get()]);
+          socket.write(dialogue[lines.getAndIncrement()] + "\r\n");
+        }
+      }
+      if (lines.get() == dialogue.length) {
+        if (closeImmediately) {
+          log.debug("closeImmediately");
+          socket.close();
+        } else {
+          log.debug("waiting " + closeWaitTime + " secs to close");
+          vertx.setTimer(closeWaitTime * 1000, v -> socket.close());
+        }
+      }
+    } ));
     }
   }
 
@@ -187,6 +203,15 @@ public class TestSmtpServer {
       }
       netServer = null;
     }
+  }
+
+  /**
+   * simulate a slow response of the server by waiting 100ms until the first smtp banner line is returned.
+   * we use this to avoid timing issues in some tests.
+   */
+  public TestSmtpServer setSlowResponse(boolean slow) {
+    slowResponse  = slow;
+    return this;
   }
 
 }

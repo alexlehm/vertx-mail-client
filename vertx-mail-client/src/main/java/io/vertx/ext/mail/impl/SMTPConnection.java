@@ -46,7 +46,6 @@ class SMTPConnection {
   private Handler<String> commandReplyHandler;
   private Handler<Throwable> errorHandler;
   private boolean broken;
-  private boolean idle;
   private boolean doShutdown;
   private final NetClient client;
   private Capabilities capa = new Capabilities();
@@ -55,7 +54,6 @@ class SMTPConnection {
 
   SMTPConnection(Vertx vertx, NetClient client, ConnectionLifeCycleListener listener) {
     broken = true;
-    idle = false;
     doShutdown = false;
     socketClosed = false;
     socketShutDown = false;
@@ -168,13 +166,12 @@ class SMTPConnection {
   }
 
   private void handleError(Throwable throwable) {
-    errorHandler.handle(throwable);
-  }
+      errorHandler.handle(throwable);
+    }
 
   public void openConnection(MailConfig config, Handler<String> initialReplyHandler, Handler<Throwable> errorHandler) {
     this.errorHandler = errorHandler;
     broken = false;
-    idle = false;
 
     client.connect(config.getPort(), config.getHostname(), asyncResult -> {
       if (asyncResult.succeeded()) {
@@ -184,7 +181,7 @@ class SMTPConnection {
         ns.exceptionHandler(e -> {
           // avoid returning two exceptions
           log.debug("exceptionHandler called");
-          if (!socketClosed && !socketShutDown && !idle && !broken) {
+          if (!socketClosed && !socketShutDown && !broken) {
             setBroken();
             log.debug("got an exception on the netsocket", e);
             handleError(e);
@@ -197,7 +194,7 @@ class SMTPConnection {
           listener.connectionClosed(this);
           socketClosed = true;
           // avoid exception if we regularly shut down the socket on our side
-          if (!socketShutDown && !idle && !broken) {
+          if (!socketShutDown && !broken) {
             setBroken();
             log.debug("throwing: connection has been closed by the server");
             handleError("connection has been closed by the server");
@@ -247,25 +244,17 @@ class SMTPConnection {
     return broken;
   }
 
-  public boolean isIdle() {
-    return idle;
-  }
-
   public void returnToPool() {
-    if (isIdle()) {
-      log.info("state error: idle connection returned to pool");
-      handleError("state error: idle connection returned to pool");
+    if (doShutdown) {
+      log.debug("shutting connection down");
+      quitCloseConnection();
     } else {
-      if (doShutdown) {
-        log.debug("shutting connection down");
-        quitCloseConnection();
-      } else {
-        log.debug("returning connection to pool");
-        commandReplyHandler = null;
-        listener.dataEnded(this);
-        log.debug("setting error handler to null");
-        errorHandler = null;
-      }
+      log.debug("returning connection to pool");
+      commandReplyHandler = null;
+      log.debug("setting error handler to null");
+      errorHandler = null;
+      prevErrorHandler = null;
+      listener.dataEnded(this);
     }
   }
 
@@ -281,8 +270,8 @@ class SMTPConnection {
           log.debug("connection is already closed, only doing shutdown()");
           shutdown();
         } else {
-          // set the connection to in use to avoid it being used by another getConnection operation
-          useConnection();
+          // set the connection to broken to avoid it being used by another getConnection operation
+          broken = true;
           new SMTPQuit(this, v -> {
             shutdown();
             log.debug("connection is shut down");
@@ -293,27 +282,17 @@ class SMTPConnection {
   }
 
   /**
-   * mark a connection as being used again
-   */
-  void useConnection() {
-    idle = false;
-  }
-
-  /**
-   * mark a connection as free
-   */
-  void setIdle() {
-    idle = true;
-  }
-
-  /**
    * set error handler to a "local" handler to be reset later
+   * think push/pop with 1 level only
    */
   private Handler<Throwable> prevErrorHandler = null;
 
   public void setErrorHandler(Handler<Throwable> newHandler) {
     if (prevErrorHandler == null) {
+      log.debug("setting prevErrorHandler");
       prevErrorHandler = errorHandler;
+    } else {
+      log.debug("not setting prevErrorHandler");
     }
 
     errorHandler = newHandler;
@@ -323,7 +302,9 @@ class SMTPConnection {
    * reset error handler to previous
    */
   public void resetErrorHandler() {
+    log.debug("setting errorHandler to prevErrorHandler");
     errorHandler = prevErrorHandler;
+    prevErrorHandler = null;
   }
 
   /**

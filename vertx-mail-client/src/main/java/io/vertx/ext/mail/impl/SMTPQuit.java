@@ -43,17 +43,22 @@ class SMTPQuit {
   }
 
   void start() {
-    connection.setErrorHandler(th -> {
-      log.debug("QUIT failed, ignoring exception", th);
+    if (connection.isClosed()) {
+      log.debug("connection is closed already, not doing QUIT");
       resultHandler.handle(null);
-    });
-    connection.write("QUIT", message -> {
-      log.debug("QUIT result: " + message);
-      if (!StatusCode.isStatusOk(message)) {
-        log.warn("quit failed: " + message);
-      }
-      resultHandler.handle(null);
-    });
+    } else {
+      connection.setErrorHandler(th -> {
+        log.debug("QUIT failed, ignoring exception", th);
+        resultHandler.handle(null);
+      });
+      connection.write("QUIT", message -> {
+        log.debug("QUIT result: " + message);
+        if (!StatusCode.isStatusOk(message)) {
+          log.warn("quit failed: " + message);
+        }
+        resultHandler.handle(null);
+      });
+    }
   }
 
 }

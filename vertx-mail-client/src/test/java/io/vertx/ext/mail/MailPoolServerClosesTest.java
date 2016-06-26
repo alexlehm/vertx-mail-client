@@ -187,11 +187,17 @@ public class MailPoolServerClosesTest extends SMTPTestDummy {
   }
 
   /**
-   * this test creates an error in the 2nd mail
+   * this test creates an error in the 2nd mail (server close, this is not expected in a real server since it will probably close the connection at the
+   * RSET command, if it doesn't want to allow more mails on this connection)
+   *
+   * this test has a bit a timing problem, if both mails are started at once, we are not sure which one is starting first and when waiting
+   * for the 2nd mail, the first one may already be done and the connection closed. To avoid that, the test server simulates a slow start by
+   * waiting 100ms before sending the first smtp banner line
    */
   @Test
   public void error2ndMail(TestContext context) {
     smtpServer.setCloseImmediately(true)
+      .setSlowResponse(true)
       .setDialogue("220 example.com ESMTP",
       "EHLO",
       "250-example.com\n" +
@@ -205,43 +211,47 @@ public class MailPoolServerClosesTest extends SMTPTestDummy {
       "354 End data with <CR><LF>.<CR><LF>",
       "250 2.0.0 Ok: queued as ABCDDEF0123456789",
       "RSET",
-      "220 reset ok");
+      "250 2.0.0 Ok");
 
     Async mail1 = context.async();
     Async mail2 = context.async();
 
-    MailClient mailClient = MailClient.createNonShared(vertx, configNoSSL());
+    final MailConfig config = configNoSSL().setMaxPoolSize(1);
+    MailClient mailClient = MailClient.createNonShared(vertx, config);
 
-    MailMessage email = exampleMessage();
+    MailMessage email1 = exampleMessage().setSubject("this is message 1");
+    MailMessage email2 = exampleMessage().setSubject("this is message 2");
 
     PassOnce pass1 = new PassOnce(s -> context.fail(s));
     PassOnce pass2 = new PassOnce(s -> context.fail(s));
 
     log.info("starting mail 1");
-    mailClient.sendMail(email, result -> {
+    mailClient.sendMail(email1, result -> {
       pass1.passOnce();
       log.info("mail finished 1");
       if (result.succeeded()) {
         log.info(result.result().toString());
         mail1.complete();
-        log.info("starting mail 2");
-        mailClient.sendMail(email, result2 -> {
-          pass2.passOnce();
-          log.info("mail finished 2");
-          if (result2.succeeded()) {
-            log.info(result2.result().toString());
-            mailClient.close();
-            context.fail("this test should fail");
-          } else {
-            log.info("(as expected) got exception 2", result2.cause());
-            mailClient.close();
-            mail2.complete();
-          }
-        });
       } else {
         log.warn("got exception 1", result.cause());
         context.fail(result.cause());
       }
+    });
+    vertx.setTimer(1, t -> {
+      log.info("starting mail 2");
+      mailClient.sendMail(email2, result2 -> {
+        pass2.passOnce();
+        log.info("mail finished 2");
+        if (result2.succeeded()) {
+          log.info(result2.result().toString());
+          mailClient.close();
+          context.fail("this test should fail");
+        } else {
+          log.info("(as expected) got exception 2", result2.cause());
+          mailClient.close();
+          mail2.complete();
+        }
+      });
     });
   }
 

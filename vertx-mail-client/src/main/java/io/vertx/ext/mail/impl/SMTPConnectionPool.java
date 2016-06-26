@@ -129,45 +129,13 @@ class SMTPConnectionPool implements ConnectionLifeCycleListener {
   // Private methods
 
   private synchronized void getConnection0(Handler<AsyncResult<SMTPConnection>> handler) {
-    SMTPConnection idleConn = null;
-    for (SMTPConnection conn : allConnections) {
-      if (!conn.isBroken() && conn.isIdle()) {
-        idleConn = conn;
-        break;
-      }
-    }
-    if (idleConn == null && connCount >= maxSockets) {
+    if (connCount >= maxSockets) {
       // Wait in queue
       log.debug("waiting for a free socket");
       waiters.add(new Waiter(handler));
     } else {
-      if (idleConn == null) {
-        // Create a new connection
         log.debug("create a new connection");
         createNewConnection(handler);
-      } else {
-        if (idleConn.isClosed()) {
-          log.warn("idle connection is closed already, this may cause a problem");
-        }
-        // if we have found a connection, run a RSET command, this checks if the connection
-        // is really usable. If this fails, we create a new connection. we may run over the connection limit
-        // since the close operation is not finished before we open the new connection, however it will be closed
-        // shortly after
-        log.debug("found idle connection, checking");
-        final SMTPConnection conn = idleConn;
-        conn.useConnection();
-        conn.getContext().runOnContext(v -> {
-          new SMTPReset(conn, result -> {
-            if (result.succeeded()) {
-              handler.handle(Future.succeededFuture(conn));
-            } else {
-              conn.setBroken();
-              log.debug("using idle connection failed, create a new connection");
-              createNewConnection(handler);
-            }
-          }).start();
-        });
-      }
     }
   }
 
@@ -185,11 +153,25 @@ class SMTPConnectionPool implements ConnectionLifeCycleListener {
         Waiter waiter = waiters.poll();
         if (waiter != null) {
           log.debug("running one waiting operation");
-          conn.useConnection();
-          waiter.handler.handle(Future.succeededFuture(conn));
+          // if we have found a connection, run a RSET command, this checks if the connection
+          // is really usable. If this fails, we create a new connection. we may run over the connection limit
+          // since the close operation is not finished before we open the new connection, however it will be closed
+          // shortly after
+          log.debug("found open connection, checking");
+          conn.getContext().runOnContext(v -> {
+            new SMTPReset(conn, result -> {
+              if (result.succeeded()) {
+                waiter.handler.handle(Future.succeededFuture(conn));
+              } else {
+                conn.setBroken();
+                log.debug("using open connection failed, create a new connection");
+                createNewConnection(waiter.handler);
+              }
+            }).start();
+          });
         } else {
-          log.debug("keeping connection idle");
-          conn.setIdle();
+          log.debug("no waiters, shutting down connection");
+          conn.quitCloseConnection();
         }
       }
     }
@@ -204,7 +186,7 @@ class SMTPConnectionPool implements ConnectionLifeCycleListener {
       }
       // Close outside sync block to avoid deadlock
       for (SMTPConnection conn : copy) {
-        if (conn.isIdle() || conn.isBroken()) {
+        if (conn.isBroken()) {
           conn.close();
         } else {
           log.debug("closing connection after current send operation finishes");
