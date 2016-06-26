@@ -183,7 +183,7 @@ class SMTPConnection {
           log.debug("exceptionHandler called");
           if (!socketClosed && !socketShutDown && !broken) {
             setBroken();
-            log.debug("got an exception on the netsocket", e);
+            log.debug("got an exception on the netsocket:"+e.getMessage());
             handleError(e);
           } else {
             log.debug("not returning follow-up exception", e);
@@ -226,7 +226,7 @@ class SMTPConnection {
         });
         ns.handler(mlp);
       } else {
-        log.error("exception on connect", asyncResult.cause());
+        log.error("exception on connect: " + asyncResult.cause().getMessage());
         handleError(asyncResult.cause());
       }
     });

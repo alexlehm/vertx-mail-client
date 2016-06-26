@@ -139,12 +139,12 @@ public class MailClientImpl implements MailClient {
   }
 
   private void handleError(String message, Handler<AsyncResult<MailResult>> resultHandler, Context context) {
-    log.debug("handleError:" + message);
+    log.debug("handleError: " + message);
     returnResult(Future.failedFuture(message), resultHandler, context);
   }
 
   private void handleError(Throwable t, Handler<AsyncResult<MailResult>> resultHandler, Context context) {
-    log.debug("handleError", t);
+    log.debug("handleError: " + t.getMessage());
     returnResult(Future.failedFuture(t), resultHandler, context);
   }
 
