@@ -191,11 +191,18 @@ class SMTPSendMail {
     // for the size check above
     createMailMessage();
 
-    sendLineByLine(0, mailMessage.length());
+    sendLineByLine(0, mailMessage.length(), 0);
   }
 
-  private void sendLineByLine(int index, int length) {
+  private void sendLineByLine(int index, int length, int debugIndex) {
+    log.debug("entering sendLineByLine("+index+","+length+")");
     while (index < length) {
+      int debugFrac = debugIndex/1000000;
+      int frac = index / 1000000;
+      if (debugFrac != frac) {
+        log.debug("reached index "+index);
+      }
+      debugIndex=index;
       int nextIndex = mailMessage.indexOf('\n', index);
       String line;
       if (nextIndex == -1) {
@@ -210,9 +217,10 @@ class SMTPSendMail {
       }
       final int nextIndexFinal = nextIndex;
       final boolean mayLog = nextIndex < 1000;
+      final int finalDebugIndex = debugIndex;
       if (connection.writeQueueFull()) {
         connection.writeLineWithDrainHandler(line, mayLog, v -> {
-          sendLineByLine(nextIndexFinal, length);
+          sendLineByLine(nextIndexFinal, length, finalDebugIndex);
         });
         // call to our handler will finish the whole message, we just return here
         return;
